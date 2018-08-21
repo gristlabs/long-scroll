@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "node",
+    "strict": true,
+
+    "noImplicitAny": true,
+    "noUnusedLocals": true,
+    "strictPropertyInitialization": false,
+
+    "declaration": false,
+    "sourceMap": true,
+
+    "baseUrl": ".",
+    "rootDir": ".",
+    "noEmit": true,
+    "plugins": [{
+      "name": "tslint-language-service"
+    }],
+    "target": "es2015",
+    "module": "commonjs",
+
+    "declaration": true,
+
+    "noEmit": false,
+    "outDir": "./dist/cjs"
+    
+  },
+  "include": [
+    "./index.ts",
+    "./lib/"
+  ]
+}
