@@ -1,10 +1,10 @@
 const path = require('path');
 
 module.exports = {
-  entry: './dist/cjs/index.js',
+  entry: './dist/index.js',
   output: {
     filename: 'scrolly-bundle.js',
-    path: path.resolve(__dirname, 'dist'),
+    path: path.resolve(__dirname),
   },
   mode: 'development',
 };

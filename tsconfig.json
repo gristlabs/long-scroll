@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "target": "es2015",
     "moduleResolution": "node",
     "strict": true,
 
@@ -16,13 +17,12 @@
     "plugins": [{
       "name": "tslint-language-service"
     }],
-    "target": "es2015",
     "module": "commonjs",
 
     "declaration": true,
 
     "noEmit": false,
-    "outDir": "./dist/cjs"
+    "outDir": "./dist/"
     
   },
   "include": [

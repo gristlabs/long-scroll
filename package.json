@@ -2,15 +2,20 @@
   "name": "scrolly",
   "version": "0.0.1",
   "description": "Client component to handle scrolling of large-lists",
-  "main": "dist/scrolly-bundle.js",
+  "main": "dist/index",
+  "types": "dist/index",
   "scripts": {
+    "prepublish": "npm run compile",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "prepare": "",
-    "compile": "rm -rf dist/ && npm run compile-ts && cp lib/BinaryIndexedTree* dist/cjs/lib",
+
+    "compile": "rm -rf dist/ && npm run compile-ts && cp lib/BinaryIndexedTree* dist/lib",
     "build": "webpack",
     "lint": "tslint --project .",
     "compile-ts": "tsc -p ."
   },
+  "files": [
+    "dist"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {},
