@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf8">
+<style>
+html, body { box-sizing:border-box;} 
+* { box-sizing: inherit; }
+
+html { font-family: sans-serif; }
+body { padding: 2rem; }
+
+.scrollbox {
+    overflow: auto;
+    position: relative;
+
+    width: 500px;
+    height: 700px;
+
+    border: 1px dashed gray;
+    margin: 1rem;
+}
+
+.row {
+    display:flex;
+    flex-direction: row;
+    border-bottom: 1px solid lightgray;
+    /* height: 30px; */
+}
+
+.row .record {
+    flex: none;
+    display:flex;
+    flex-direction: row;
+}
+
+.row .field.row_num {
+    width: 4rem;
+    text-align: center;
+    background-color: #f0f0f0;
+    border-right: 1px solid lightgray;
+    position: sticky;
+    left: 0px;
+}
+
+.row .field {
+    padding: 0;
+    line-height: 1.5rem;
+    width: 8rem;
+    border-right: 1px solid lightgray;
+    flex: none;
+}
+
+.field span {
+    padding: 0 0.5rem;
+    display:inline-block;
+    width:100%;
+    height: 100%;
+}
+
+.field input {
+    padding: 0 0.5rem;
+    border-radius: 0;
+    border: 0;
+    line-height: inherit;
+    font-kerning: inherit;
+    font: inherit;
+    box-sizing: inherit;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+    width: 100%;
+
+    outline: 1px solid lightblue;
+    outline-offset: -2px;
+
+}
+
+</style>
+  </head>
+  <body>
+    <script src='/scrolly-bundle.js'></script>
+  </body>
+</html>
