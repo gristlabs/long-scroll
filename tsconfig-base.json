@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "es2015",
+    "moduleResolution": "node",
+    "strict": true,
+
+    "noImplicitAny": true,
+    "noUnusedLocals": true,
+    "strictPropertyInitialization": false,
+
+    "declaration": false,
+    "sourceMap": true,
+
+    "baseUrl": ".",
+    "rootDir": ".",
+    "noEmit": true,
+    "plugins": [{
+      "name": "tslint-language-service"
+    }],
+    "module": "commonjs",
+
+    "declaration": true,
+    "noEmit": false
+  }
+}
