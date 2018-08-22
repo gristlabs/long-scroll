@@ -3,9 +3,9 @@
   "version": "0.0.1",
   "description": "Client component to handle scrolling of large-lists",
   "repository": {
-      "type": "git",
-      "url": "https://github.com/gristlabs/long-scroll"
-    },
+    "type": "git",
+    "url": "https://github.com/gristlabs/long-scroll"
+  },
   "main": "dist/lib/index",
   "types": "dist/lib/index",
   "scripts": {
@@ -15,7 +15,6 @@
     "compile": "rm -rf dist/ && tsc -p . && cp lib/BinaryIndexedTree* dist/lib",
     "compile-tests": "rm -rf dist/ && tsc -p test/tsconfig-test.json && cp lib/BinaryIndexedTree* dist/lib",
     "start": "npm run compile-tests && webpack-serve --config webpack.config.js"
-
   },
   "files": [
     "dist"
@@ -24,6 +23,7 @@
   "license": "ISC",
   "dependencies": {},
   "devDependencies": {
+    "@types/underscore": "^1.8.9",
     "grainjs": "^0.1.0",
     "tslint": "^5.11.0",
     "typescript": "^3.0.1",
