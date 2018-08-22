@@ -1,7 +1,11 @@
 {
-  "name": "scrolly",
+  "name": "long-scroll",
   "version": "0.0.1",
   "description": "Client component to handle scrolling of large-lists",
+  "repository": {
+      "type": "git",
+      "url": "https://github.com/gristlabs/long-scroll"
+    },
   "main": "dist/lib/index",
   "types": "dist/lib/index",
   "scripts": {

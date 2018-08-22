@@ -1,2 +1,2 @@
-export {Scrolly, ScrollyDataSource} from './Scrolly';
+export {LongScroll, LongScrollDataSource} from './LongScroll';
 export {Scheduler} from './Scheduler';

@@ -10,7 +10,7 @@
 //
 
 
-import {Scrolly} from './Scrolly';
+import {LongScroll} from './LongScroll';
 
 export interface SchedulerEvent {
   lastFrameTime: number;
@@ -130,8 +130,8 @@ export class Scheduler {
 
   private DEBUGMAXLOAD = false; // TODO: what for debuggin and suchlike
 
-  //TODO, ultimately scheduler should do all the timing stuff itself so it doesnt need a ref to scrolly
-  constructor(private scrolly: Scrolly) {
+  //TODO, ultimately scheduler should do all the timing stuff itself so it doesnt need a ref to longscroll
+  constructor(private longscroll: LongScroll) {
     this.readQueue = new SchedulerQueue();
     this.writeQueue = new SchedulerQueue();
     this.idleWriteQueue = new SchedulerQueue();
@@ -158,7 +158,7 @@ export class Scheduler {
       if(this.DEBUGMAXLOAD) { return 1; }
 
       // This is idle work, we want to throttle it back when frame times get too long
-      const frameTime = this.scrolly.timer.getAveragedFrameTime();
+      const frameTime = this.longscroll.timer.getAveragedFrameTime();
 
       // we want to throttle smoothly between low threshold and high threshold
       // TODO: hard limits like this might be pathological on slow machines. Maybe add some sort of timeout mechanism
@@ -181,7 +181,7 @@ export class Scheduler {
     // hmm
     
     const schedEvent = { 
-      lastFrameTime: this.scrolly.timer.getLastFrameDuration(),
+      lastFrameTime: this.longscroll.timer.getLastFrameDuration(),
       loadFactor: this.getLoadFactor()
     }
 

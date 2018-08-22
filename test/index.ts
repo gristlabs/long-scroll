@@ -1,7 +1,7 @@
 import * as gr from "grainjs";
 const dom = gr.dom;
 
-import {Scrolly, ScrollyDataSource } from '../lib/Scrolly';
+import {LongScroll, LongScrollDataSource} from '../lib/LongScroll';
 import * as _ from "underscore";
 
 
@@ -144,7 +144,7 @@ class TTable {
 
 
 
-class TDataSource implements ScrollyDataSource {
+class TDataSource implements LongScrollDataSource {
     table: TTable;
     constructor(table: TTable) {
         this.table = table;
@@ -163,7 +163,7 @@ class TDataSource implements ScrollyDataSource {
     }
 
     //Makes dummy dom.
-    //Will be styled to fixed-height by scrolly
+    //Will be styled to fixed-height by longscroll
     makeDummyDom(index: number) {
         return this.getRow(index).makeDummyDom();
     }
@@ -195,13 +195,13 @@ const testRecords = makeTestStrings(800).map(str => new TRecord(str));
 
 const testTable = new TTable(testRecords);
 const testDataSrc = new TDataSource(testTable);
-const s = new Scrolly(testDataSrc);
+const s = new LongScroll(testDataSrc);
 (<any>window).s = s;
 
 let scrollBox: HTMLElement;
 const container = 
         dom('div.container', 
-            'Testing Scrolly',
+            'Testing LongScroll',
             scrollBox = dom('div.scrollbox'))
 
 s.makeDom(scrollBox);

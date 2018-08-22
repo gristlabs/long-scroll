@@ -1,6 +1,6 @@
 /**
- * Scrolly is a class that allows scrolling a very long list of rows by rendering only those
- * that are visible. Note that the elements rendered by scrolly should have box-sizing set to
+ * LongScroll is a class that allows scrolling a very long list of rows by rendering only those
+ * that are visible. Note that the elements rendered by longscroll should have box-sizing set to
  * border-box.
  */
 
@@ -44,7 +44,7 @@ function showPromiseError(err: Error) {
         // if a task is cancelled, that means that
         // whatever was working on it has been freed
         // so not actually a problem
-        console.log("Scrolly: scheduler cancelled task due to freeing block");
+        console.log("LongScroll: scheduler cancelled task due to freeing block");
     } else {
         throw err;
     }
@@ -223,7 +223,7 @@ class VelTracker {
 
 
 
-export interface ScrollyDataSource {
+export interface LongScrollDataSource {
   length: number;
 
   //getRow(i: number): T; // returns a reference to the row element?
@@ -363,16 +363,16 @@ interface Block {
 }
 
 
-class ScrollyDom {
+class LongScrollDom {
   constructor(
     public container: HTMLElement,
     public scrollDiv: HTMLElement,
   ) {}
 }
 
-export class Scrolly extends Disposable{
-  private data: ScrollyDataSource;
-  private dom: ScrollyDom|null = null;
+export class LongScroll extends Disposable{
+  private data: LongScrollDataSource;
+  private dom: LongScrollDom|null = null;
 
   private debug: DebugCanvas;
 
@@ -401,7 +401,7 @@ export class Scrolly extends Disposable{
 
 
   // represents dom for a set of rows
-  // Attaches itself to scrolly's scroll div on creation
+  // Attaches itself to longscroll's scroll div on creation
   private static BlockImpl = class BlockImpl implements Block{
 
     private blockDiv: HTMLElement;
@@ -424,7 +424,7 @@ export class Scrolly extends Disposable{
 
 
     constructor(
-        public scrolly: Scrolly,
+        public longscroll: LongScroll,
         range:Range) 
     {
 
@@ -437,8 +437,8 @@ export class Scrolly extends Disposable{
           gr.style("will-change", "transform"),
         )
 
-      this.scrolly.scheduler.scheduleWrite(this).then(()=>{
-        this.scrolly.dom!.scrollDiv.appendChild(this.blockDiv);
+      this.longscroll.scheduler.scheduleWrite(this).then(()=>{
+        this.longscroll.dom!.scrollDiv.appendChild(this.blockDiv);
       })
       .catch((err) => { showPromiseError(err); });
 
@@ -459,8 +459,8 @@ export class Scrolly extends Disposable{
 
       const doms: Element[] = [];
       this.range.forEach((i, offset) => {
-        const d = this.scrolly.data.makeDummyDom(i);
-        gr.styleElem(d, "height", this.scrolly.getRowHeight(i) + "px");
+        const d = this.longscroll.data.makeDummyDom(i);
+        gr.styleElem(d, "height", this.longscroll.getRowHeight(i) + "px");
         doms.push(d);
       });
 
@@ -472,7 +472,7 @@ export class Scrolly extends Disposable{
 
       this.doms = [];
       this.range.forEach((i, offset) => {
-          const d = this.scrolly.data.makeDom(i);
+          const d = this.longscroll.data.makeDom(i);
           if(! (d instanceof Node)) { throw Error("makeDom returned nonRow"); }
           this.doms![offset] = d;
 
@@ -480,7 +480,7 @@ export class Scrolly extends Disposable{
       });
 
       this.dirty = true;
-      // TODO: do this by event maybe? (to notify blockset and scrolly)
+      // TODO: do this by event maybe? (to notify blockset and longscroll)
     }
 
     // Moves it offscreen
@@ -494,7 +494,7 @@ export class Scrolly extends Disposable{
 
       for(let offset = 0; offset < this.doms.length; offset++) {
         const rowIndex = firstRow + offset;
-        const oldHeight = this.scrolly.getRowHeight(rowIndex);
+        const oldHeight = this.longscroll.getRowHeight(rowIndex);
         const rowDom = this.doms[offset];
         const rowHeight = rowDom.getBoundingClientRect().height;
 
@@ -503,7 +503,7 @@ export class Scrolly extends Disposable{
         //only update rowheights if the height of the row actually changed
         if(rowHeight != oldHeight) {
           //TODO, maybe updating the dummy dom height should be done centralized
-          this.scrolly.scheduler.scheduleWrite(this)
+          this.longscroll.scheduler.scheduleWrite(this)
             .then(() => gr.styleElem(dummyDom, "height", rowHeight + "px"))
             .catch((err) => { showPromiseError(err); });
 
@@ -517,7 +517,7 @@ export class Scrolly extends Disposable{
       
       // only update if rows actually changed size
       if(rowHeights.length)
-      {this.scrolly.updateRowSize(rowHeights);}
+      {this.longscroll.updateRowSize(rowHeights);}
     }
 
     /* Creates dom for all rows if needed
@@ -548,13 +548,13 @@ export class Scrolly extends Disposable{
             });
           }
 
-          await this.scrolly.scheduler.scheduleIdleWrite(this); // schedules us a write
+          await this.longscroll.scheduler.scheduleIdleWrite(this); // schedules us a write
 
           this.blockDiv.innerHTML = "";
           this.blockDiv.appendChild(frag);
           this.updatePos();
 
-          await this.scrolly.scheduler.scheduleRead(this);
+          await this.longscroll.scheduler.scheduleRead(this);
 
           // If we just rendered the real thing
           if(!isDummyRender) { 
@@ -566,7 +566,7 @@ export class Scrolly extends Disposable{
 
           // Reposition blockDiv
 
-          //dom.styleElem(this.blockDiv, "top", this.scrolly.getRowTop(this.range.top) + "px");
+          //dom.styleElem(this.blockDiv, "top", this.longscroll.getRowTop(this.range.top) + "px");
           //console.log(`block: ${block.top - scr.top}, ${block.bottom - scr.top}`);
 
         }
@@ -579,8 +579,8 @@ export class Scrolly extends Disposable{
     }
 
     public updatePos() {
-        //dom.styleElem(this.blockDiv, "top", this.scrolly.getRowTop(this.range.top) + "px");
-        dom.styleElem(this.blockDiv, "transform", "translateY(" + this.scrolly.getRowTop(this.range.top) + "px" + ")");
+        //dom.styleElem(this.blockDiv, "top", this.longscroll.getRowTop(this.range.top) + "px");
+        dom.styleElem(this.blockDiv, "transform", "translateY(" + this.longscroll.getRowTop(this.range.top) + "px" + ")");
     }
 
 
@@ -596,10 +596,10 @@ export class Scrolly extends Disposable{
       
       // Let datasource free the doms itself
       this.range.forEach((i, offset) => {
-        this.scrolly.data.freeDummyDom(i, this.dummyDoms[offset]);
+        this.longscroll.data.freeDummyDom(i, this.dummyDoms[offset]);
 
         if(this.doms) 
-        { this.scrolly.data.freeDom(i, this.doms[offset]); }
+        { this.longscroll.data.freeDom(i, this.doms[offset]); }
       });
 
       // Free our div
@@ -609,7 +609,7 @@ export class Scrolly extends Disposable{
       { this.blockDiv.outerHTML = ""; }
 
       //Cancel any pending work by this (mid-render, etc)
-      this.scrolly.scheduler.cancelJobs(this);
+      this.longscroll.scheduler.cancelJobs(this);
     }
 
   }; // End of BlockImpl
@@ -624,7 +624,7 @@ export class Scrolly extends Disposable{
   //    (buffer more towards where we're scrolling)
   //
   // Should also handle resizes, and pass pixel shifts on to blocks when needed
-  // Scrolly and Blocks themselves handle actual rendering and pixel-counting for the most part
+  // LongScroll and Blocks themselves handle actual rendering and pixel-counting for the most part
 
   private static BlockSetImpl = class BlockSetImpl implements BlockSet {
 
@@ -639,8 +639,8 @@ export class Scrolly extends Disposable{
     private preferredBlockSize:number; // TODO make this better
 
 
-    constructor(private scrolly: Scrolly) {
-      this.preferredBlockSize = this.scrolly.initialBlockSize;
+    constructor(private longscroll: LongScroll) {
+      this.preferredBlockSize = this.longscroll.initialBlockSize;
     }
 
     // Updates the range which this should keep covered
@@ -655,7 +655,7 @@ export class Scrolly extends Disposable{
       const newTop = Math.round(range.top - height/3);
       const newBot = Math.round(range.bot + height/3);
 
-      this.leaveRange = new Range(newTop, newBot).clampTo(0, this.scrolly.data.length);
+      this.leaveRange = new Range(newTop, newBot).clampTo(0, this.longscroll.data.length);
 
       this.ensureCovers()
             .catch((err) => { showPromiseError(err); });
@@ -668,7 +668,7 @@ export class Scrolly extends Disposable{
       // If we already contain it, noop
       if(currR.contains(targR)) { return; }
 
-      await this.scrolly.scheduler.scheduleWrite(this);
+      await this.longscroll.scheduler.scheduleWrite(this);
 
       this.debug();
 
@@ -757,7 +757,7 @@ export class Scrolly extends Disposable{
        * Block shouldn't be made if frames are taking too long
        * Block shouldn't be made if last block isn't finished yet
        */
-      if((this.scrolly as any).DEBUG) { return;}
+      if((this.longscroll as any).DEBUG) { return;}
 
       const b = this.getNextUnpreparedBlock();
       if(!b) { return; }
@@ -770,9 +770,9 @@ export class Scrolly extends Disposable{
 
       console.log(`Coin flip: loadFactor frametime:${evt.loadFactor}, result:${shouldRun?"T":"F"}`);
 
-      //if(this.scrolly.timer.getLastFrameDuration() > 30) {
+      //if(this.longscroll.timer.getLastFrameDuration() > 30) {
       if (!shouldRun) {
-        console.log(`Blockset: skipping doWork, last frame took ${this.scrolly.timer.getLastFrameDuration()}ms`);
+        console.log(`Blockset: skipping doWork, last frame took ${this.longscroll.timer.getLastFrameDuration()}ms`);
         return;
       }
       
@@ -786,7 +786,7 @@ export class Scrolly extends Disposable{
     // Returns promise which resolves when block is prepared
     private async doPrepare(b: Block) {
 
-      this.scrolly.TICKDEBUG.reset(); // TODO TEMP
+      this.longscroll.TICKDEBUG.reset(); // TODO TEMP
 
       const t1 = Date.now();
       b.prepare();
@@ -806,7 +806,7 @@ export class Scrolly extends Disposable{
     // Starts at the center of the viewport and alternates
     // Gets first unprepared Block
     private getNextUnpreparedBlock(): Block|null {
-      const targetRow = new Range(0, this.scrolly.data.length).clampNum(this.targetRow);
+      const targetRow = new Range(0, this.longscroll.data.length).clampNum(this.targetRow);
 
       let centerBlock = -1;
       for(let i = 0; i < this.blocks.length; i++) {
@@ -860,14 +860,14 @@ export class Scrolly extends Disposable{
         // const avg = this.lastTimes.reduce((a,b)=>a+b) / 5;
 
         // number of frames that went over preferred (
-        const numOver = this.lastTimes.filter(t => t > this.scrolly.preferredBlockTime).length;
+        const numOver = this.lastTimes.filter(t => t > this.longscroll.preferredBlockTime).length;
 
         // if at least 4 of last 5 frames took too long, shrink block size
         if(numOver >= 4) {
 
           //Shrink by 20% (min block size based on param
           const shrinkBy = Math.ceil(this.preferredBlockSize * 0.2);
-          this.preferredBlockSize = Math.max(this.scrolly.minBlockSize, this.preferredBlockSize - shrinkBy);
+          this.preferredBlockSize = Math.max(this.longscroll.minBlockSize, this.preferredBlockSize - shrinkBy);
 
           console.log(`SHRUNK BLOCK SIZE TO ${this.preferredBlockSize}`);
           console.log(this.lastTimes);
@@ -892,8 +892,8 @@ export class Scrolly extends Disposable{
     //
 
     private createBlockClamped(r: Range) {
-      const clampedRange = r.clampTo(0, this.scrolly.data.length);
-      return new Scrolly.BlockImpl(this.scrolly, clampedRange);
+      const clampedRange = r.clampTo(0, this.longscroll.data.length);
+      return new LongScroll.BlockImpl(this.longscroll, clampedRange);
     }
 
 
@@ -938,17 +938,17 @@ export class Scrolly extends Disposable{
 
 
 
-  constructor(data: ScrollyDataSource) {
+  constructor(data: LongScrollDataSource) {
     super();
     this.data = data;
 
     this.reInit();
 
 
-    this.debug = this.autoDispose(new Scrolly.DebugCanvas(this)); // TODO JAN TEMP DEBUG
+    this.debug = this.autoDispose(new LongScroll.DebugCanvas(this)); // TODO JAN TEMP DEBUG
     console.log(this.debug); // TODO: hack, otherwise tslint wont get off my back about unused variables
 
-    this.blocks = new Scrolly.BlockSetImpl(this);
+    this.blocks = new LongScroll.BlockSetImpl(this);
     this.vel = new VelTracker();
 
     this.scheduler = new Scheduler(this);
@@ -1026,14 +1026,14 @@ export class Scrolly extends Disposable{
   private tick() {
     this.TICKDEBUG.tick();
 
-    //console.log(`ticking in scrolly`);
+    //console.log(`ticking in longscroll`);
     //should prepare one block per frame
     this.scheduler.scheduleIdleWrite(this).then((evt) => this.blocks.doWork(evt));
 
     this.scheduler.doBatched(); // trigger scheduled dom reads/writes
 
     if(!this.TICKDEBUG.isStopped())
-     { console.log("Frame took " + this.timer.getLastFrameDuration() + "ms in scrolly"); }
+     { console.log("Frame took " + this.timer.getLastFrameDuration() + "ms in longscroll"); }
   }
 
 
@@ -1041,9 +1041,9 @@ export class Scrolly extends Disposable{
 
   // creates dom, attaches it to elem
   public makeDom(elem:HTMLElement) {
-    this.dom = new ScrollyDom(
+    this.dom = new LongScrollDom(
       elem,
-      dom('div#scrolly_outer',
+      dom('div#longscroll_outer',
         gr.style("position", "absolute"),
       )
     );
@@ -1091,7 +1091,7 @@ export class Scrolly extends Disposable{
 
   // TODO private?
   private onScroll(evt?: Event) {
-    if(!this.dom) { console.log("onScroll: scrolly not yet initialized"); return; }
+    if(!this.dom) { console.log("onScroll: longscroll not yet initialized"); return; }
 
     this.TICKDEBUG.reset() // TODO temp
 
@@ -1185,7 +1185,7 @@ export class Scrolly extends Disposable{
   // End RowHeights
 
 
-  // returns what region scrolly would like to keep buffered
+  // returns what region longscroll would like to keep buffered
   //
   private getRegionToBuffer(): Range {
     // playing around with buffering schemes for scroll velocity
@@ -1216,7 +1216,7 @@ export class Scrolly extends Disposable{
 
 
   private assertInitialized() {
-    if(!this.dom){ throw Error("Scrolly dom not initialized"); }
+    if(!this.dom){ throw Error("LongScroll dom not initialized"); }
     return true;
   }
 
@@ -1227,16 +1227,16 @@ export class Scrolly extends Disposable{
   private static DebugCanvas = class DebugCanvasImpl extends Disposable implements DebugCanvas {
     private canvas: HTMLCanvasElement;
     private dom: Element;
-    private scrolly: Scrolly;
+    private longscroll: LongScroll;
     private shown: Observable<boolean>;
 
     private timer: AnimationFrameTimer;
 
-    constructor(scrolly: Scrolly) {
+    constructor(longscroll: LongScroll) {
       super();
       this.shown = this.autoDispose(gr.observable(true));
 
-      this.scrolly = scrolly;
+      this.longscroll = longscroll;
 
       this.dom = debugEl(
           makeToggleButton(this.shown,
@@ -1279,7 +1279,7 @@ export class Scrolly extends Disposable{
 
 
     private getScale() {
-      return (this.canvas.height * 0.9) / this.scrolly.getPaneHeight();
+      return (this.canvas.height * 0.9) / this.longscroll.getPaneHeight();
     }
 
     // draws a rect, scaled to fit totalHeight
@@ -1329,23 +1329,23 @@ export class Scrolly extends Disposable{
 
     //draws a label for the given row
     labelRow(ctx:CanvasRenderingContext2D, i:number, x=100, color="black") {
-      let top = this.scrolly.getRowTop(i);
+      let top = this.longscroll.getRowTop(i);
       this.label(ctx, "" + i, top, x, color);
     }
 
     rectRow(ctx:CanvasRenderingContext2D, begin:number, end:number, width=100, color="black") {
-      let top = this.scrolly.getRowTop(begin);
-      let bottom = this.scrolly.getRowTop(end);
+      let top = this.longscroll.getRowTop(begin);
+      let bottom = this.longscroll.getRowTop(end);
       this.rect(ctx, top, bottom, width, color);
     }
 
     //label every nth row
     labelRows(ctx:CanvasRenderingContext2D, nth=10) {
-      for(let i=nth; i < this.scrolly.data.length; i+=nth) {
+      for(let i=nth; i < this.longscroll.data.length; i+=nth) {
         this.labelRow(ctx, i, 10, "lightgray");
       }
 
-      let i = this.scrolly.data.length;
+      let i = this.longscroll.data.length;
       this.labelRow(ctx, i, 10, "lightgray");
     }
 
@@ -1361,10 +1361,10 @@ export class Scrolly extends Disposable{
       this.labelRows(ctx);
 
 
-      let rBlock = this.scrolly.blocks.getCoveredRange();
+      let rBlock = this.longscroll.blocks.getCoveredRange();
       this.rectRow(ctx, rBlock.top, rBlock.bot, 100, "blue");
 
-      const blocks = this.scrolly.blocks.getBlocks();
+      const blocks = this.longscroll.blocks.getBlocks();
       blocks.forEach(b => {
         let col = "yellow"
         if(b.isPrepared()){col = "green";}
@@ -1374,31 +1374,31 @@ export class Scrolly extends Disposable{
 
       /*
       //draw buffered rectangle
-      let rb = this.scrolly.begin + this.scrolly.numBuffered/2;
-      let re = this.scrolly.end - this.scrolly.numBuffered/2;
+      let rb = this.longscroll.begin + this.longscroll.numBuffered/2;
+      let re = this.longscroll.end - this.longscroll.numBuffered/2;
       this.rectRow(ctx, rb, re, 100, "green");
       */
 
 
-      let vp = this.scrolly.viewport;
+      let vp = this.longscroll.viewport;
       this.labelledRect(ctx, vp.top, vp.bot, 100, "red");
 
-      let h = this.scrolly.getPaneHeight();
+      let h = this.longscroll.getPaneHeight();
       this.rect(ctx, 0, h, 150, "black");
       this.label(ctx, "" + h, h, 150);
 
       ctx.strokeStyle="black";
       let vpCenter = (vp.top + vp.bot) / 2;
-      let v = this.scrolly.vel.getVel() * 10;
+      let v = this.longscroll.vel.getVel() * 10;
       this.drawLine(ctx, 50, vpCenter * this.getScale(), 50, vpCenter * this.getScale() + v);
-      this.label(ctx, "" + this.scrolly.vel.getVel().toFixed(2), vpCenter, 55);
+      this.label(ctx, "" + this.longscroll.vel.getVel().toFixed(2), vpCenter, 55);
 
 
 
-      const rTarget = this.scrolly.getRegionToBuffer();
+      const rTarget = this.longscroll.getRegionToBuffer();
       this.rect(ctx, rTarget.top, rTarget.bot, 200, "violet");
 
-      const rLeave = (<any> this.scrolly.blocks).leaveRange as Range;
+      const rLeave = (<any> this.longscroll.blocks).leaveRange as Range;
       if(rLeave)
       { this.rectRow(ctx, rLeave.top, rLeave.bot, 200, "blue"); }
 

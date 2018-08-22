@@ -4,7 +4,7 @@ module.exports = {
   devtool: 'source-map',
   entry: './dist/test/index.js',
   output: {
-    filename: 'scrolly-bundle.js',
+    filename: 'longscroll-bundle.js',
     path: path.resolve(__dirname),
   },
   mode: 'development',
