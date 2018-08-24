@@ -23,8 +23,12 @@
   "license": "ISC",
   "dependencies": {},
   "devDependencies": {
+    "@types/chai": "^4.1.4",
+    "@types/mocha": "^5.2.5",
     "@types/underscore": "^1.8.9",
+    "chai": "^4.1.2",
     "grainjs": "^0.1.0",
+    "mocha": "^5.2.0",
     "tslint": "^5.11.0",
     "typescript": "^3.0.1",
     "underscore": "^1.9.1",
