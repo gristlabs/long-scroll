@@ -7,7 +7,6 @@
 // Keeps track of time taken maybe?
 // Maybe have provision for resumable tasks (using asyncawait)
 //
-//
 
 
 import {LongScroll} from './LongScroll';
@@ -45,6 +44,8 @@ class TriggerablePromise<T> extends Promise<T> {
 */
 
 
+// Task has a promise, and that promise can be resolved/rejected by methods on the task
+// That promise is what's returned when you schedule a read/write/etc
 class Task {
   public state: TaskState;
   public promise: Promise<SchedulerEvent>;
@@ -107,6 +108,7 @@ class SchedulerQueue {
     await Promise.resolve();
   }
 
+  // TODO: currently this is just a linear scan, might be slow eventually
   clearTasksBy(ownerObj: Object) {
     for(let i = 0; i < this.queue.length; i++) {
       const task = this.queue[i];
@@ -119,14 +121,13 @@ class SchedulerQueue {
 }
 
 export class Scheduler {
-  //Needs some way to cancel
   private readQueue: SchedulerQueue;
   private writeQueue: SchedulerQueue;
   private idleWriteQueue: SchedulerQueue;
 
   private lowThresh = 25; // Below this is idle
   private hiThresh = 50; // Above this is max load (TODO, maybe make exponential backoff instead)
-  private maxLoad = 0.95; //never go above 0.95, so at least some work gets done (TODO, maybe this wont be needed)
+  private maxLoad = 0.95; //never go above 0.95, so at least some work gets done (TODO, maybe this wont be needed with expon)
 
   private DEBUGMAXLOAD = false; // TODO: what for debuggin and suchlike
 
@@ -174,23 +175,17 @@ export class Scheduler {
       return loadFactorClamped
   }
 
+  // triggers queues to run
   public async doBatched() {
-    // Null the promise first, so new reads are queued for the next frame
-    // Maybe that's not needed tho actually. Like we can keep adding reads as much as we want
-    // once we're already reading
-    // hmm
-    
     const schedEvent = { 
       lastFrameTime: this.longscroll.timer.getLastFrameDuration(),
       loadFactor: this.getLoadFactor()
     }
 
-    console.timeStamp("Doing batched tasks");
     await this.readQueue.executeTasks(schedEvent);
     await this.writeQueue.executeTasks(schedEvent);
     //TODO: make this throttled better somehow?
     await this.idleWriteQueue.executeTasks(schedEvent);
-    console.timeStamp("end batched");
   }
 
   //cancel jobs where owner matches this
