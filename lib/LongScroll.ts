@@ -13,11 +13,6 @@ import {Scheduler, SchedulerEvent, TaskCancelledError} from './Scheduler';
 
 let dom = gr.dom;
 
-/**
- * Use the browser globals in a way that allows replacing them with mocks in tests.
- */
-// var G = require('./browserGlobals').get('window', '$');
-
 
 // DebugCanvas stuffs;
 
@@ -39,6 +34,14 @@ let debugCanvas = gr.styled('canvas',
 );
 
 
+// ================= Assorted helpers
+
+function makeToggleButton(observable: gr.Observable<boolean>, ...rest: DomElementArg[]) {
+  let toggleObs = ()=>{ observable.set(!observable.get());};
+  return dom("input", gr.attr("type","button"), dom.on('click', toggleObs), ...rest);
+}
+
+
 function showPromiseError(err: Error) {
     if(err instanceof TaskCancelledError) {
         // if a task is cancelled, that means that
@@ -50,16 +53,11 @@ function showPromiseError(err: Error) {
     }
 }
 
-//
-function makeToggleButton(observable: gr.Observable<boolean>, ...rest: DomElementArg[]) {
-  let toggleObs = ()=>{ observable.set(!observable.get());};
-  return dom("input", gr.attr("type","button"), dom.on('click', toggleObs), ...rest);
-}
-
 
 
 // TODO Maybe should go into scheduler?
-// Something
+
+// Helper to keep running average of last few of a series of values
 class AveragedValue {
   private samples = [] as number[];
   constructor(public readonly maxSamples: number) {}
@@ -83,8 +81,6 @@ class AveragedValue {
   // counts how many samples
   public getNumSamples() { return this.samples.length; }
 }
-
-// Function that takes 
 
 
 /* ------------- NOTE -----------
@@ -161,24 +157,24 @@ class AnimationFrameTimer extends Disposable{
 }
 
 
-// Takes scroll positions at times
-// keeps track of estimate of vel at current time
-// generates
+// Needs to be notified of scroll position whenever there's a scroll event
+// provides estimate of scroll speed at a given point in time
 class VelTracker {
+
   /* Sudden jumps shouldnt be interpreted as shifts of velocity
    *
    * scroll events should be received every ~30 ms
    * If 50ms without a scroll event, start decaying vel estimate
    */
 
-  private static jumpThreshold = 1000; //more than 1000px is interpreted as jump
-  private static decayStartTime = 50; // after this many ms without a scroll, assumes we've stopped
-  private static decayTime = 200; // smoothly vary velocity down until this long after last scroll
+  private static jumpThreshold = 1000; //more than 1000px is interpreted as jump (TODO: not really implemented)
+
+  private static decayStartTime = 50; // after this many ms without a scroll, assumes we're stopping
+  private static decayTime = 200; // let velocity take this many ms to decay to zero (smooths it slightly)
 
   private lastTime = 0;
   private lastPos = -1;
   private lastVel = 0;
-
 
   public onScroll(scrollPos: number) {
     const currTime = Date.now();
@@ -210,12 +206,9 @@ class VelTracker {
 
     if(deltaT < VelTracker.decayStartTime) {
       return this.lastVel;
-    }
 
-    else {
-
+    } else {
       if(deltaT >= VelTracker.decayTime) { this.lastVel = 0; return 0; }
-
       return this.lastVel * (1 - deltaT / VelTracker.decayTime);
     }
   }
@@ -226,16 +219,12 @@ class VelTracker {
 export interface LongScrollDataSource {
   length: number;
 
-  //getRow(i: number): T; // returns a reference to the row element?
-
   makeDom(index: number): Element;
+  freeDom(index: number, elm: Element): void;
 
   //makes simple dom to prevent white-flash
   //simple dom should be of given height in pixels
   makeDummyDom(index: number): Element;
-
-  //TODO also add reassign
-  freeDom(index: number, elm: Element): void;
   freeDummyDom(index: number, elm: Element): void;
 }
 
@@ -319,50 +308,53 @@ export class Range {
   }
 }
 
+
+// represents a contiguous set of blocks. Tries to keep a set of rows covered/buffered
 interface BlockSet {
-    setTarget(range: Range, startFrom: number): void;
     getBlocks(): Block[];
     getCoveredRange(): Range;
 
+    // Sets target range to keep covered and queues blocks/dummy doms to be made
+    setTarget(range: Range, startFrom: number): void;
+
     debug(): void;
 
+    doWork(evt: SchedulerEvent): void; // schedules it to do some work
     render(): void; //sets its blocks to render
 
-    doWork(evt: SchedulerEvent): void; // schedules it to do some work
-    //ultimately should do like, requestidleframe or something?
-
+    // should be called by scrolly when row sizes change
     updateRowSize(rows: Array<{index: number, newSize: number}>): void;
 }
 
+
+// represents a contiguous set of rows
+// creates first dummy doms, then later real doms 
+// Attaches self to dom, handles positioning, row-height measuring
+// TODO: (refactor) could maybe exist entirely within blockset?
 interface Block {
-  // Render stuff (needs to support partial render
-  // to prevent flashing )
-
-  prepare(): void; //makes DOM (internal, no render), (might be slow)
-
+  // Dummy doms created on constructor
+  
   updatePos(): void; //repositions itself to match rowheights
 
-  // Returns whether proper dom is prepared
-  isPrepared(): boolean;
-  isDirty(): boolean;
+  prepare(): void; // prepares real DOMs (internal, no render), (might be slow)
+
+  isPrepared(): boolean; // Returns whether proper dom is prepared
+  isDirty(): boolean; // Returns whether render() needs to be called
 
   render(): void;
 
   // Which rows it handles
-//  setRange(r: Range): void; TODO: NOT NEEDED ANYMORE?
   getRange(): Range;
 
-
-  //Removes block from DOM
-  //frees its dom contents??
-  //MAYBE
+  // Removes block from DOM
+  // lets datasource know it's done with doms
   free(): void;
-  // Where it is on the grid
-  // get absPxRange
-  // get vpPxRange
 }
 
 
+// Helper container to keep scrolly's dom together
+// Might actually be useless, just wanted a way for typescript to accept 
+// that these dont exist until longscroll.makeDom is called
 class LongScrollDom {
   constructor(
     public container: HTMLElement,
@@ -390,46 +382,40 @@ export class LongScroll extends Disposable{
   // Initial block size in rows
   private initialBlockSize = 19; // TODO make this better
 
-  // we would like to shrink blocks to keep block prepare time below this number (ms)
+  // Try to make blocks prepare in this number of ms (shrink block size)
   private preferredBlockTime = 12; 
 
-  // dont shrink below this
+  // dont shrink blocks size below this (too small causes layout thrashing)
   private minBlockSize = 5; // TODO make this better (dynamic)
-
-
-
 
 
   // represents dom for a set of rows
   // Attaches itself to longscroll's scroll div on creation
+  // Used only within blockset
   private static BlockImpl = class BlockImpl implements Block{
 
     private blockDiv: HTMLElement;
-    private range: Range;
 
-
-    // dom elements for actual data
-    // created asynchronously
-    private doms: Element[] | null = null; //real doms, null if mot prepared
+    // set when need to change dom attached to the document (like on construct or on prepare)
+    public dirty = false;
+    public isDirty() { return this.dirty; }
 
     // dummy dom elements, created immediately
     private dummyDoms: Element[];
 
-    // set when element needs to be resized
-    // or doms reattached
-    public dirty = false;
+    // dom elements for actual data
+    // created on prepare()
+    private doms: Element[] | null = null; //real doms, null if mot prepared
 
-    public isDirty() { return this.dirty; }
     public isPrepared() { return this.doms != null; }
 
+    public getDom() { return this.blockDiv; }
 
-    constructor(
-        public longscroll: LongScroll,
-        range:Range) 
-    {
+    public getRange() { return this.range; }
 
-      this.range = range;
+    constructor(public longscroll: LongScroll, private range: Range) {
 
+      // Prepare block div
       this.blockDiv = dom('div#blockdiv',
           gr.style("position", "absolute"),
           gr.style("display", "flex"),
@@ -442,19 +428,16 @@ export class LongScroll extends Disposable{
       })
       .catch((err) => { showPromiseError(err); });
 
+      // Prepare contents
       this.dummyDoms = this.prepareDummyDoms();
     }
 
-    public getDom() { return this.blockDiv; }
 
-    public getRange() { return this.range; }
-
-
-
+    // Fetches dummy doms from longscroll datasource
+    // sets dirty
     private prepareDummyDoms(): Element[]{
       console.log("Preparing dummy doms for " + this);
 
-      // TODO: use free list
       this.dirty = true;
 
       const doms: Element[] = [];
@@ -467,6 +450,8 @@ export class LongScroll extends Disposable{
       return doms;
     }
 
+    // Fetches real doms from longscroll datasource (slow)
+    // sets dirty
     public prepare() {
       console.log("Preparing real doms for " + this);
 
@@ -475,19 +460,16 @@ export class LongScroll extends Disposable{
           const d = this.longscroll.data.makeDom(i);
           if(! (d instanceof Node)) { throw Error("makeDom returned nonRow"); }
           this.doms![offset] = d;
-
-        // TODO: free list, else reuse existing rows maybe?
       });
 
       this.dirty = true;
       // TODO: do this by event maybe? (to notify blockset and longscroll)
     }
 
-    // Moves it offscreen
+    // Once real doms are rendered, we can measure their heights
+    // Notify scrolly if height is different from expected
     public measure() {
       if(this.doms == null) { throw Error("Can only measure rows if they're already prepared"); }
-
-      //this.blockDiv.style.visibility = "hidden";
 
       const rowHeights = []
       const firstRow = this.getRange().top;
@@ -509,24 +491,17 @@ export class LongScroll extends Disposable{
 
           rowHeights.push({index: rowIndex, newSize:rowHeight});
         }
-
       }
 
-      //console.log(rowHeights);
-      // TODO: batch this
-      
       // only update if rows actually changed size
       if(rowHeights.length)
-      {this.longscroll.updateRowSize(rowHeights);}
+        {this.longscroll.updateRowSize(rowHeights);}
     }
 
-    /* Creates dom for all rows if needed
-     * Clears block div, inserts row dom
-     * Positions block div if necessary
-     */
+    // If dirty, attaches row doms to block div
+    // Uses real doms if available, else uses dummy doms
     public async render() {
       try {
-        // Update blockDiv contents if needed
         if(this.dirty) {
           console.log("rendering dirty " + this.toString());
           this.dirty = false;
@@ -548,7 +523,8 @@ export class LongScroll extends Disposable{
             });
           }
 
-          await this.longscroll.scheduler.scheduleIdleWrite(this); // schedules us a write
+          // Wait until it's an appropriate time to modify dom
+          await this.longscroll.scheduler.scheduleIdleWrite(this);
 
           this.blockDiv.innerHTML = "";
           this.blockDiv.appendChild(frag);
@@ -556,18 +532,12 @@ export class LongScroll extends Disposable{
 
           await this.longscroll.scheduler.scheduleRead(this);
 
-          // If we just rendered the real thing
+          // Try measuring the row (only if we have an actual row)
           if(!isDummyRender) { 
-            if(this.doms![0].getBoundingClientRect().height == 0) {
-              console.log("AAAAA");
-            }
+            if(this.doms![0].getBoundingClientRect().height == 0) 
+              { throw Error("Row measured as 0 height, almost certainly a bug"); }
             this.measure(); 
           }
-
-          // Reposition blockDiv
-
-          //dom.styleElem(this.blockDiv, "top", this.longscroll.getRowTop(this.range.top) + "px");
-          //console.log(`block: ${block.top - scr.top}, ${block.bottom - scr.top}`);
 
         }
 
@@ -578,22 +548,14 @@ export class LongScroll extends Disposable{
       }
     }
 
+    // Called when row heights change and on render. Sets correct blockdiv position
     public updatePos() {
         //dom.styleElem(this.blockDiv, "top", this.longscroll.getRowTop(this.range.top) + "px");
         dom.styleElem(this.blockDiv, "transform", "translateY(" + this.longscroll.getRowTop(this.range.top) + "px" + ")");
     }
 
 
-
-    public toString() {
-      const r = this.range;
-      return `Block(${r.top}, ${r.bot}, Prepped: ${this.isPrepared()?"T":"F"})`;
-    }
-
     public free() {
-      // TODO: free the rest of it
-      // this.blockDiv.style.visibility = "hidden";
-      
       // Let datasource free the doms itself
       this.range.forEach((i, offset) => {
         this.longscroll.data.freeDummyDom(i, this.dummyDoms[offset]);
@@ -602,15 +564,24 @@ export class LongScroll extends Disposable{
         { this.longscroll.data.freeDom(i, this.doms[offset]); }
       });
 
-      // Free our div
-      dom.domDispose(this.blockDiv);
-      //this.blockDiv.parentNode!.removeChild(this.blockDiv);
-      if(this.blockDiv.parentNode)
-      { this.blockDiv.outerHTML = ""; }
-
       //Cancel any pending work by this (mid-render, etc)
       this.longscroll.scheduler.cancelJobs(this);
+
+      // Free our own dom (not the row doms, datasource should get those)
+      // (we should remove row doms from the doc tho)
+      // (??? TODO i dont know if this is correct -Jan)
+      dom.domDispose(this.blockDiv);
+
+      if(this.blockDiv.parentNode)
+        { this.blockDiv.outerHTML = ""; }
+
     }
+
+    public toString() {
+      const r = this.range;
+      return `Block(${r.top}, ${r.bot}, Prepped: ${this.isPrepared()?"T":"F"})`;
+    }
+
 
   }; // End of BlockImpl
 
@@ -620,37 +591,35 @@ export class LongScroll extends Disposable{
   // Handles maintaining a list of blocks corresponding to some contiguous set of rows
   // Handles creating, freeing, and moving around blocks to maintain some rendered portion
   // Will do best effort to render first dummy rows, then real rows
-  // If given buffer size and direction, will handle predictive buffering
-  //    (buffer more towards where we're scrolling)
   //
   // Should also handle resizes, and pass pixel shifts on to blocks when needed
   // LongScroll and Blocks themselves handle actual rendering and pixel-counting for the most part
 
   private static BlockSetImpl = class BlockSetImpl implements BlockSet {
 
+    // Set of blocks which this blockSet manages
     // Invariant: blocks should be contiguous and in order
     private blocks: Block[] = [];
 
-    private targetRow: number; // which row to start rendering from
-    private targetRange: Range; //range to ensure is covered by blocks
-    private leaveRange: Range; //range where we should leave blocks and not free them
+    private targetRange: Range; // row range to ensure is covered by blocks
+    private leaveRange: Range;  // row range outside which we may start freeing blocks
+    private targetRow: number;  // which row to start rendering from (blocks closest to it get rendered first)
 
-
-    private preferredBlockSize:number; // TODO make this better
-
+    private preferredBlockSize:number; // Size in rows with which we'll create new blocks. This can change to maintain performance
 
     constructor(private longscroll: LongScroll) {
       this.preferredBlockSize = this.longscroll.initialBlockSize;
     }
 
-    // Updates the range which this should keep covered
-    // If already covered, noop
+    // Sets the range which this blockset should keep covered
+    // If targetRange is not fully covered, make more blocks so it is
     public setTarget(range: Range, startFrom: number) {
       this.targetRow = startFrom;
       this.targetRange = range;
 
       // leaveRange: for Now just make it double the size of the targetRange,
       // centered on targetRange
+      // TODO: could be better/account for resource usage better/account for velocity better
       const height = range.height;
       const newTop = Math.round(range.top - height/3);
       const newBot = Math.round(range.bot + height/3);
@@ -658,26 +627,28 @@ export class LongScroll extends Disposable{
       this.leaveRange = new Range(newTop, newBot).clampTo(0, this.longscroll.data.length);
 
       this.ensureCovers()
-            .catch((err) => { showPromiseError(err); });
+      .catch((err) => { showPromiseError(err); });
     }
 
+    // Make sure that this.blocks actually covers this.targetRange
     public async ensureCovers() {
       let currR = this.getCoveredRange();
       const targR = this.targetRange;
 
-      // If we already contain it, noop
+      // If we already contain everything we need to, do nothing
       if(currR.contains(targR)) { return; }
 
       await this.longscroll.scheduler.scheduleWrite(this);
 
-      this.debug();
+      this.debug(); // logging
 
       //TODO: make block-freeing dependent on direction
       //TODO: maybe make a separate paremeter for how much I want buffered?
 
-      // decide when to drop blocks
+      // =========== Free some blocks
+      
       // as long as we have blocks
-      // and the first block is fully above the leave range
+      // and the first block is fully above the leave range, drop it
       while(this.blocks.length &&
             this.blocks[0].getRange().bot <= this.leaveRange.top)
             { this.freeBlockAtStart(); }
@@ -687,17 +658,19 @@ export class LongScroll extends Disposable{
             this.blocks[this.blocks.length-1].getRange().top >= this.leaveRange.bot)
             { this.freeBlockAtEnd(); }
 
+      // blocks freed
 
-
-      // Start adding blocks again
+      // =========== If no blocks, place initial one
       if(! this.blocks.length) { 
-        // start first block centered on target row
+        // start it centered on target row
         const halfBlock = Math.floor(this.preferredBlockSize / 2);
         this.makeFirstBlockAt(this.targetRow - halfBlock); 
       }
 
-      // expand to contain range
-      // TODO, move if discontinuous with leaveRange (actually the leaverange freeing might just fix that)
+      // =========== Main section: add blocks at beginning/end to cover target
+      
+      // (shouldn't take many blocks usually)
+      // Limiting to max 10 blocks prevents it from locking up in buggy corner cases
       for(let i = 0; i < 10; i++) {
         currR = this.getCoveredRange();
         console.log(`ensureCovers(${targR}), curr is ${currR}`);
@@ -710,8 +683,9 @@ export class LongScroll extends Disposable{
         console.log(targR, currR);
       }
 
-
     }
+
+    // ============= Helpers
 
     public getBlocks() {
       return this.blocks;
@@ -748,21 +722,20 @@ export class LongScroll extends Disposable{
 
 
 
+     /* This gets called by scheduler when there's idle time
+      * Will try to call prepare() on a block
+      * Should throttle self back when there's high load
+      * (this prevents flickering)
+      * TODO: Block shouldn't be made if last block isn't finished yet (maybe?)
+      */
     public doWork(evt: SchedulerEvent) {
-      /* TODO: 
-       * This gets called every tick
-       * Should first prioritize that all dummy blocks are made on time
-       * (this prevents flickering)
-       * Should then start filling in blocks when possible
-       * Block shouldn't be made if frames are taking too long
-       * Block shouldn't be made if last block isn't finished yet
-       */
       if((this.longscroll as any).DEBUG) { return;}
 
+      // if no work, return
       const b = this.getNextUnpreparedBlock();
       if(!b) { return; }
 
-      evt.loadFactor; //number from 0 to 1
+      // ===== Throttle back
 
       // if we're at 0, we want it to run always
       // if at 1 (taking long time) we want it to not run;
@@ -770,11 +743,12 @@ export class LongScroll extends Disposable{
 
       console.log(`Coin flip: loadFactor frametime:${evt.loadFactor}, result:${shouldRun?"T":"F"}`);
 
-      //if(this.longscroll.timer.getLastFrameDuration() > 30) {
       if (!shouldRun) {
         console.log(`Blockset: skipping doWork, last frame took ${this.longscroll.timer.getLastFrameDuration()}ms`);
         return;
       }
+
+      // ==== Actual work here:
       
 
       this.doPrepare(b)
@@ -788,6 +762,7 @@ export class LongScroll extends Disposable{
 
       this.longscroll.TICKDEBUG.reset(); // TODO TEMP
 
+      // Prepare and time a block
       const t1 = Date.now();
       b.prepare();
       const t2 = Date.now();
@@ -796,7 +771,8 @@ export class LongScroll extends Disposable{
       const h = b.getRange().height;
       console.log(`Prepared block (${h} rows) in ${deltaT}ms`);
 
-      //dont count old blocks which are just now getting rendered towards block render times
+      // Note down block time to adjust block size
+      // need to check height to make sure the prepare time is for the current size bloc
       if(h == this.preferredBlockSize)
         { this.updateBlockTimes(deltaT); }
 
@@ -857,9 +833,6 @@ export class LongScroll extends Disposable{
       if(this.lastTimes.length == 5) {
         // average render time
 
-        // const avg = this.lastTimes.reduce((a,b)=>a+b) / 5;
-
-        // number of frames that went over preferred (
         const numOver = this.lastTimes.filter(t => t > this.longscroll.preferredBlockTime).length;
 
         // if at least 4 of last 5 frames took too long, shrink block size
@@ -879,8 +852,8 @@ export class LongScroll extends Disposable{
       }
     }
 
-    // shifts blocks around
-    // assume rows have already been updated
+    // Called by long scroll when row sizes change
+    // Delegates to blocks to reposition themselves later
     public updateRowSize(rows: Array<{index:number, newSize:number}>) {
       // TODO: maybe do this by deltas later
       this.blocks.forEach(b => {
@@ -944,7 +917,6 @@ export class LongScroll extends Disposable{
 
     this.reInit();
 
-
     this.debug = this.autoDispose(new LongScroll.DebugCanvas(this)); // TODO JAN TEMP DEBUG
     console.log(this.debug); // TODO: hack, otherwise tslint wont get off my back about unused variables
 
@@ -959,17 +931,18 @@ export class LongScroll extends Disposable{
 
 
   public onResize() {
-    //TODO: for now just reconstructs it
+    //TODO: for now just reconstructs it, works sorta
     this.reInit();
   }
 
   public onDataChange() {
+    //TODO: this works sorta, but is reaaally not the right way
     this.reInit();
   }
 
   private reInit() {
     this.rowHeights = new BinaryIndexedTree();
-    // for now just init with
+    // for now just init default values to 30 TODO TODO
     this.rowHeights.fillFromValues(_.times(this.data.length, ()=> 30));
 
     if(this.dom)
@@ -981,8 +954,10 @@ export class LongScroll extends Disposable{
 
   // ====== Accessors/primitives
 
-  // MEMOIZE VIEWPORT ACCESS
-  // prevents forced reflow
+  // VIEWPORT AND PANE HEIGHT ARE MEMOIZED
+  // computed onscroll and cached. 
+  // Other components access them through this, to prevent forced layout (read-after-write)
+  // TODO this is horribly hacky though
 
   private _lastViewport: Range | null = null;
   // TODO: update on scroll, onresize, etc???
@@ -1013,6 +988,9 @@ export class LongScroll extends Disposable{
     return this._lastPaneHeight;
   }
 
+  // Keeps track of whether or not we're running
+  // Goal was to try and stop timers when there's no scrolling or work for a while
+  // TODO TODO
   private TICKDEBUG = function(){
       let count = 0;
       console.log(count); //omg shut up tslint
@@ -1023,6 +1001,9 @@ export class LongScroll extends Disposable{
       }
   }(); // counts down each tick, set to 5 whenever there's work to do
 
+  // Called whenever timer ticks.
+  // We pass these ticks to scheduler
+  // TODO: maybe scheduler should handle the timing, that would make sense
   private tick() {
     this.TICKDEBUG.tick();
 
@@ -1057,6 +1038,9 @@ export class LongScroll extends Disposable{
   }
 
 
+  // called onscroll, on row resize, etc
+  // Figures out where viewport is,
+  // decides what rows should be buffered, notifies blockset
   public async updateViewport() {
     if((this as any).DEBUG) { return;}
     this.assertInitialized();
@@ -1105,8 +1089,6 @@ export class LongScroll extends Disposable{
   private updateRowSize(rows: Array<{index:number, newSize:number}>) {
     //TODO: dont do anything if old value was the same
 
-    //const changedRows = [];
-
     this.assertInitialized();
     rows.forEach(r => {
       this.rowHeights.setValue(r.index, r.newSize);
@@ -1124,6 +1106,7 @@ export class LongScroll extends Disposable{
       console.log(`resizing scrollPange: ${newPaneHeight} (SKIPPING)`);
       //this.dom!.scrollDiv.style.height = newPaneHeight + "px";
       //this._lastPaneHeight = newPaneHeight; //force recaclc
+      //TODO TODO: updateing scrollpange height disabled for now
     })
       .catch((err) => { showPromiseError(err); });
 
@@ -1153,7 +1136,7 @@ export class LongScroll extends Disposable{
   }
 
   // get rowIndex at pixel height
-  // TODO: add one relative to viewport
+  // TODO: add version of this relative to viewport
   // Errors on out of bounds
   public getRowAtPx(top: number) {
     if(top < 0)
@@ -1186,7 +1169,7 @@ export class LongScroll extends Disposable{
 
 
   // returns what region longscroll would like to keep buffered
-  //
+  // accounts for velocity
   private getRegionToBuffer(): Range {
     // playing around with buffering schemes for scroll velocity
     // Idea 1: decide added buffer assymetry, starts at 50/50, asymptote towards 0/100
@@ -1404,12 +1387,7 @@ export class LongScroll extends Disposable{
 
       ctx.restore();
     }
-
-
-
   }
-
-
 }
 
 interface DebugCanvas {
