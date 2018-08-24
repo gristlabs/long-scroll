@@ -36,11 +36,13 @@ function hashedRowHeight(index: number) {
 
 class TRecord {
     name: gr.Observable<string>;
+    index: number;
     randVal: number;
 
 
-    constructor(name:string){
+    constructor(name:string, index: number){
         this.name = gr.observable(name);
+        this.index = index;
         this.randVal = _.random(0,99);
     }
 
@@ -49,7 +51,9 @@ class TRecord {
         let fieldLabel, fieldEdit: HTMLElement;
         busyWait(1); //slow things down a touch
 
-        return dom("div.record", 
+        const rowDom = dom("div.row",
+            dom("div.field.row_num", this.index + ""),
+            dom("div.record", 
                 dom.autoDispose(isEdit),
                 dom("div.field", 
                     fieldLabel = dom('span', 
@@ -97,30 +101,13 @@ class TRecord {
                 dom("div.field", "s"),
                 dom("div.field", "t"),
                 dom("div.field", "u"),
-        )
-    };
-}
-
-class TRow {
-    content: TRecord;
-    index: number;
-
-    constructor(content: TRecord, index: number) {
-        this.content = content
-        this.index = index;
-    }
-
-    makeDom() {
-        const contentDom = this.content.makeDom();
-        dom.styleElem(contentDom, "min-height", hashedRowHeight(this.index) + "px");
-
-        return dom("div.row",
-            dom("div.field.row_num", this.index + ""),
-            contentDom
+            )
         );
-    }
 
-    //Makes dummy dom of a given height
+        dom.styleElem(rowDom, "min-height", hashedRowHeight(this.index) + "px");
+        return rowDom;
+    };
+
     makeDummyDom() {
         return dom("div.row",
             dom("div.field.row_num", this.index + ""),
@@ -129,51 +116,29 @@ class TRow {
     }
 }
 
-// an array of rowmodels
-class TTable {
-    rows: TRow[];
-
-    constructor(records: TRecord[]){
-        this.rows = [];
-        records.forEach((r, i) => {
-            const row = new TRow(r, i);
-            this.rows.push(row);
-        })
-    }
-}
-
-
 
 class TDataSource implements LongScrollDataSource {
-    table: TTable;
-    constructor(table: TTable) {
-        this.table = table;
+    records: TRecord[];
+
+    constructor(records: TRecord[]) {
+        this.records = records;
     }
 
-    get length() { return this.table.rows.length; }
-    getRow(i:number) { return this.table.rows[i]; }
 
-    makeDom(model: TRow): Element;
-    makeDom(index: number): Element;
-    makeDom(a: TRow|number) : Element{ 
-        if(typeof a == "number") 
-            { return this.getRow(a).makeDom(); }
-        else 
-            { return a.makeDom(); }
+    get length() { return this.records.length; }
+
+    makeDom(index: number): Element {
+        return this.records[index].makeDom();
     }
 
-    //Makes dummy dom.
     //Will be styled to fixed-height by longscroll
     makeDummyDom(index: number) {
-        return this.getRow(index).makeDummyDom();
+        return this.records[index].makeDummyDom();
     }
 
     freeDom(index: number, elm: Element) { }
     freeDummyDom(index: number, elm: Element) { }
 }
-
-
-
 
 
 // returns an array of n random-ish strings
@@ -191,10 +156,9 @@ function makeTestStrings(n: number): string[] {
 
 
 
-const testRecords = makeTestStrings(800).map(str => new TRecord(str));
+const testRecords = makeTestStrings(800).map((str, i) => new TRecord(str, i));
 
-const testTable = new TTable(testRecords);
-const testDataSrc = new TDataSource(testTable);
+const testDataSrc = new TDataSource(testRecords);
 const s = new LongScroll(testDataSrc);
 (<any>window).s = s;
 
@@ -233,7 +197,5 @@ function doSlowScroll() {
     timer = setInterval(tick, 10);
 }
 (window as any).scroll = doSlowScroll;
-
-
 
 
